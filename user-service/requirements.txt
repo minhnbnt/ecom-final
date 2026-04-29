@@ -1,0 +1,4 @@
+django>=6.0
+djangorestframework
+djangorestframework-simplejwt
+mysql-connector-python

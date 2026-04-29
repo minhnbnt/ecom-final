@@ -1,0 +1,198 @@
+services:
+
+  # ── Databases ─────────────────────────────────────────────────
+
+  mariadb:
+    image: mariadb:12-ubi
+    environment:
+      MARIADB_DATABASE: userdb
+      MARIADB_USER: django
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+      - ./mariadb-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: django
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: productdb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U django -d productdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  neo4j:
+    image: neo4j:2026-community-ubi10
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '["apoc"]'
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── DB Admin UIs ─────────────────────────────────────────────
+
+  phpmyadmin:
+    image: phpmyadmin:5-fpm-alpine
+    environment:
+      PMA_HOST: mariadb
+      PMA_USER: root
+      PMA_PASSWORD: ${DB_ROOT_PASSWORD}
+      PMA_ARBITRARY: 1
+    volumes:
+      - phpmyadmin-data:/var/www/html
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  pgadmin:
+    image: dpage/pgadmin4:9.14
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "8082:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Application Services ────────────────────────────────────
+
+  user-service:
+    build: ./user-service
+    environment:
+      DB_HOST: mariadb
+      DB_NAME: userdb
+      DB_USER: django
+      DB_PASSWORD: ${DB_PASSWORD}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  product-service:
+    build: ./product-service
+    environment:
+      DB_HOST: postgres
+      DB_NAME: productdb
+      DB_USER: django
+      DB_PASSWORD: ${DB_PASSWORD}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  cart-service:
+    build: ./cart-service
+    environment:
+      DB_HOST: postgres
+      DB_NAME: cartdb
+      DB_USER: django
+      DB_PASSWORD: ${DB_PASSWORD}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  order-service:
+    build: ./order-service
+    environment:
+      DB_HOST: postgres
+      DB_NAME: orderdb
+      DB_USER: django
+      DB_PASSWORD: ${DB_PASSWORD}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  payment-service:
+    build: ./payment-service
+    environment:
+      DB_HOST: postgres
+      DB_NAME: paymentdb
+      DB_USER: django
+      DB_PASSWORD: ${DB_PASSWORD}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  shipping-service:
+    build: ./shipping-service
+    environment:
+      DB_HOST: postgres
+      DB_NAME: shippingdb
+      DB_USER: django
+      DB_PASSWORD: ${DB_PASSWORD}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ai-service:
+    build: ./ai-service
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
+      OPENAI_MODEL: ${OPENAI_MODEL}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      PRODUCT_SERVICE_URL: http://product-service:8000
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      product-service:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+
+  # ── Reverse Proxy ───────────────────────────────────────────
+
+  nginx:
+    image: nginx:1.29-alpine
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - phpmyadmin-data:/var/www/html:ro
+    depends_on:
+      - user-service
+      - product-service
+      - cart-service
+      - order-service
+      - payment-service
+      - shipping-service
+      - ai-service
+      - frontend
+      - phpmyadmin
+
+volumes:
+  mariadb-data:
+  postgres-data:
+  neo4j-data:
+  phpmyadmin-data:

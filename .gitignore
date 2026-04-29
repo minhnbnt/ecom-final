@@ -1,0 +1,50 @@
+# ── Environment ───────────────────────────────────────────────
+.env
+*.env.local
+.env.*
+!.env.example
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
+*.pyo
+db.sqlite3
+
+# ── Node.js ───────────────────────────────────────────────────
+node_modules/
+dist/
+.vite/
+pnpm-debug.log*
+
+# ── IDE ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ── OS ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── Docker / Podman ───────────────────────────────────────────
+*.log
+
+# ── AI / ML ───────────────────────────────────────────────────
+*.h5
+*.keras
+*.pt
+*.pth
+*.onnx
+
+# ── Agent / Gemini ────────────────────────────────────────────
+.agent/
+.gemini/
