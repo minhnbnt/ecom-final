@@ -27,6 +27,7 @@ class RAGPipeline:
 
     def __init__(self, knowledge_graph):
         self.kg = knowledge_graph
+        self.model = OPENAI_MODEL
         self.client = openai.OpenAI(
             api_key=OPENAI_API_KEY,
             base_url=OPENAI_API_BASE_URL,

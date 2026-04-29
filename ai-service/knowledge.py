@@ -201,9 +201,9 @@ class KnowledgeGraph:
             result = session.run(
                 """
                 MATCH (p:Product)-[:BELONGS_TO]->(c:Category)
-                WHERE toLower(p.name) CONTAINS toLower($query)
-                   OR toLower(p.description) CONTAINS toLower($query)
-                   OR toLower(c.name) CONTAINS toLower($query)
+                WHERE toLower(p.name) CONTAINS toLower($search_term)
+                   OR toLower(p.description) CONTAINS toLower($search_term)
+                   OR toLower(c.name) CONTAINS toLower($search_term)
                 RETURN p.product_id AS product_id,
                        p.name AS name,
                        p.description AS description,
@@ -211,7 +211,8 @@ class KnowledgeGraph:
                        c.name AS category
                 LIMIT $limit
                 """,
-                query=query,
+                search_term=query,
                 limit=limit,
             )
             return [dict(r) for r in result]
+

@@ -17,5 +17,5 @@ RUN pnpm run build
 # Stage 2: serve via nginx
 FROM nginx:1.29-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx-spa.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 3000

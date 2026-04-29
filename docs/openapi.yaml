@@ -1,0 +1,1009 @@
+openapi: 3.0.3
+info:
+  title: EcomFinal — E-Commerce Microservices API
+  description: |
+    API Gateway tổng hợp cho hệ thống E-Commerce Microservices.
+    Tất cả request đi qua Nginx Gateway tại port 8080.
+
+    **Kiến trúc:**
+    - `user-service` (Django + MariaDB) — Auth & User management
+    - `product-service` (Django + PostgreSQL) — Product catalog
+    - `cart-service` (Django + PostgreSQL) — Shopping cart
+    - `order-service` (Django + PostgreSQL) — Order management
+    - `payment-service` (Django + PostgreSQL) — Payment processing
+    - `shipping-service` (Django + PostgreSQL) — Shipment tracking
+    - `ai-service` (FastAPI + Neo4j) — AI Recommendation & Chatbot
+  version: 1.0.0
+  contact:
+    name: EcomFinal Team
+
+servers:
+  - url: http://localhost:8080
+    description: Local API Gateway (Nginx)
+
+tags:
+  - name: Auth
+    description: Đăng ký, đăng nhập, refresh token
+  - name: Users
+    description: Quản lý người dùng
+  - name: Products
+    description: Danh mục & sản phẩm
+  - name: Cart
+    description: Giỏ hàng
+  - name: Orders
+    description: Đơn hàng
+  - name: Payment
+    description: Thanh toán
+  - name: Shipping
+    description: Vận chuyển
+  - name: AI
+    description: AI Recommendation & Chatbot
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Access Token từ /api/auth/login/
+
+  schemas:
+    # ── User ──────────────────────────────────────────────────
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, staff, customer]
+        phone:
+          type: string
+        address:
+          type: string
+        is_active:
+          type: boolean
+        date_joined:
+          type: string
+          format: date-time
+
+    Tokens:
+      type: object
+      properties:
+        access:
+          type: string
+          description: JWT access token (1h)
+        refresh:
+          type: string
+          description: JWT refresh token (7d)
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tokens:
+          $ref: '#/components/schemas/Tokens'
+
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        role:
+          type: string
+          enum: [admin, staff, customer]
+          default: customer
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    # ── Product ───────────────────────────────────────────────
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        product_count:
+          type: integer
+
+    BookDetail:
+      type: object
+      properties:
+        author:
+          type: string
+        publisher:
+          type: string
+        isbn:
+          type: string
+        pages:
+          type: integer
+
+    ElectronicsDetail:
+      type: object
+      properties:
+        brand:
+          type: string
+        warranty_months:
+          type: integer
+        specifications:
+          type: object
+
+    FashionDetail:
+      type: object
+      properties:
+        size:
+          type: string
+        color:
+          type: string
+        material:
+          type: string
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: string
+          example: "450000.00"
+        stock:
+          type: integer
+        image_url:
+          type: string
+        category:
+          type: integer
+        category_name:
+          type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        book:
+          $ref: '#/components/schemas/BookDetail'
+        electronics:
+          $ref: '#/components/schemas/ElectronicsDetail'
+        fashion:
+          $ref: '#/components/schemas/FashionDetail'
+
+    # ── Cart ──────────────────────────────────────────────────
+    CartItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        product_id:
+          type: integer
+        quantity:
+          type: integer
+        added_at:
+          type: string
+          format: date-time
+
+    Cart:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AddToCartRequest:
+      type: object
+      required: [product_id]
+      properties:
+        product_id:
+          type: integer
+        quantity:
+          type: integer
+          default: 1
+
+    RemoveFromCartRequest:
+      type: object
+      required: [product_id]
+      properties:
+        product_id:
+          type: integer
+
+    # ── Order ─────────────────────────────────────────────────
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        product_id:
+          type: integer
+        product_name:
+          type: string
+        quantity:
+          type: integer
+        unit_price:
+          type: string
+          example: "450000.00"
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        total_price:
+          type: string
+          example: "900000.00"
+        status:
+          type: string
+          enum: [pending, confirmed, paid, shipping, delivered, cancelled]
+        shipping_address:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        created_at:
+          type: string
+          format: date-time
+
+    CreateOrderRequest:
+      type: object
+      required: [shipping_address]
+      properties:
+        shipping_address:
+          type: string
+
+    # ── Payment ───────────────────────────────────────────────
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        order_id:
+          type: integer
+        amount:
+          type: string
+          example: "900000.00"
+        method:
+          type: string
+          example: credit_card
+        status:
+          type: string
+          enum: [pending, success, failed]
+        transaction_id:
+          type: string
+          example: TXN-A1B2C3D4E5F6
+        created_at:
+          type: string
+          format: date-time
+
+    PayRequest:
+      type: object
+      required: [order_id, amount]
+      properties:
+        order_id:
+          type: integer
+        amount:
+          type: number
+          format: double
+        method:
+          type: string
+          default: credit_card
+
+    # ── Shipping ──────────────────────────────────────────────
+    Shipment:
+      type: object
+      properties:
+        id:
+          type: integer
+        order_id:
+          type: integer
+        address:
+          type: string
+        status:
+          type: string
+          enum: [processing, shipping, delivered, cancelled]
+        tracking_number:
+          type: string
+          example: SHIP-A1B2C3D4E5
+        created_at:
+          type: string
+          format: date-time
+
+    CreateShipmentRequest:
+      type: object
+      required: [order_id, address]
+      properties:
+        order_id:
+          type: integer
+        address:
+          type: string
+
+    UpdateShipmentRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [processing, shipping, delivered, cancelled]
+
+    # ── AI ────────────────────────────────────────────────────
+    ChatbotRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        user_id:
+          type: integer
+
+    ChatbotResponse:
+      type: object
+      properties:
+        answer:
+          type: string
+        products:
+          type: array
+          items:
+            type: object
+
+    RecommendResponse:
+      type: object
+      properties:
+        recommended_product_ids:
+          type: array
+          items:
+            type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        detail:
+          type: string
+
+paths:
+  # ══════════════════════════════════════════════════════════════
+  # AUTH
+  # ══════════════════════════════════════════════════════════════
+  /api/auth/register/:
+    post:
+      tags: [Auth]
+      summary: Đăng ký tài khoản mới
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Đăng ký thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Dữ liệu không hợp lệ hoặc username đã tồn tại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/login/:
+    post:
+      tags: [Auth]
+      summary: Đăng nhập
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Sai tên đăng nhập hoặc mật khẩu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/token/refresh/:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh]
+              properties:
+                refresh:
+                  type: string
+      responses:
+        '200':
+          description: Token mới
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access:
+                    type: string
+
+  # ══════════════════════════════════════════════════════════════
+  # USERS
+  # ══════════════════════════════════════════════════════════════
+  /api/users/me/:
+    get:
+      tags: [Users]
+      summary: Lấy thông tin user hiện tại
+      operationId: getMe
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Thông tin user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Chưa đăng nhập
+
+  /api/users/:
+    get:
+      tags: [Users]
+      summary: Danh sách users (admin only)
+      operationId: listUsers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Danh sách users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /api/users/{id}/:
+    get:
+      tags: [Users]
+      summary: Chi tiết user (admin only)
+      operationId: getUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Chi tiết user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User không tồn tại
+
+  # ══════════════════════════════════════════════════════════════
+  # PRODUCTS
+  # ══════════════════════════════════════════════════════════════
+  /api/products/categories/:
+    get:
+      tags: [Products]
+      summary: Danh sách categories
+      operationId: listCategories
+      responses:
+        '200':
+          description: Danh sách categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+    post:
+      tags: [Products]
+      summary: Tạo category mới (admin)
+      operationId: createCategory
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Category đã tạo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+
+  /api/products/:
+    get:
+      tags: [Products]
+      summary: Danh sách sản phẩm
+      operationId: listProducts
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: integer
+          description: Filter theo category ID
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Tìm kiếm theo tên sản phẩm
+        - name: ordering
+          in: query
+          schema:
+            type: string
+            enum: [price, -price, created_at, -created_at]
+          description: Sắp xếp
+      responses:
+        '200':
+          description: Danh sách sản phẩm
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+    post:
+      tags: [Products]
+      summary: Tạo sản phẩm mới (admin)
+      operationId: createProduct
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, price, category]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                price:
+                  type: number
+                stock:
+                  type: integer
+                image_url:
+                  type: string
+                category:
+                  type: integer
+      responses:
+        '201':
+          description: Sản phẩm đã tạo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+  /api/products/{id}/:
+    get:
+      tags: [Products]
+      summary: Chi tiết sản phẩm
+      operationId: getProduct
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Chi tiết sản phẩm (bao gồm book/electronics/fashion nếu có)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Không tìm thấy sản phẩm
+
+  # ══════════════════════════════════════════════════════════════
+  # CART
+  # ══════════════════════════════════════════════════════════════
+  /api/cart/:
+    get:
+      tags: [Cart]
+      summary: Lấy giỏ hàng hiện tại
+      operationId: getCart
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Giỏ hàng của user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '401':
+          description: Chưa đăng nhập
+
+  /api/cart/add/:
+    post:
+      tags: [Cart]
+      summary: Thêm sản phẩm vào giỏ
+      operationId: addToCart
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddToCartRequest'
+      responses:
+        '201':
+          description: Đã thêm (sản phẩm mới)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '200':
+          description: Đã cập nhật số lượng (sản phẩm đã có)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+
+  /api/cart/remove/:
+    delete:
+      tags: [Cart]
+      summary: Xóa sản phẩm khỏi giỏ
+      operationId: removeFromCart
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveFromCartRequest'
+      responses:
+        '200':
+          description: Giỏ hàng sau khi xóa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+
+  # ══════════════════════════════════════════════════════════════
+  # ORDERS
+  # ══════════════════════════════════════════════════════════════
+  /api/orders/:
+    get:
+      tags: [Orders]
+      summary: Danh sách đơn hàng của user
+      operationId: listOrders
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Danh sách đơn hàng
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+
+  /api/orders/create/:
+    post:
+      tags: [Orders]
+      summary: Tạo đơn hàng từ giỏ hàng
+      description: |
+        Luồng xử lý:
+        1. Lấy giỏ hàng từ cart-service
+        2. Tạo order + order items
+        3. Gọi payment-service tạo thanh toán
+        4. Xóa giỏ hàng
+      operationId: createOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Đơn hàng đã tạo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: Giỏ hàng trống
+
+  /api/orders/{id}/:
+    get:
+      tags: [Orders]
+      summary: Chi tiết đơn hàng
+      operationId: getOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Chi tiết đơn hàng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Không tìm thấy đơn hàng
+
+  # ══════════════════════════════════════════════════════════════
+  # PAYMENT
+  # ══════════════════════════════════════════════════════════════
+  /api/payment/pay/:
+    post:
+      tags: [Payment]
+      summary: Thanh toán đơn hàng
+      description: |
+        Simulate payment processing:
+        1. Tạo payment record (pending)
+        2. Xử lý thanh toán (luôn success cho demo)
+        3. Gọi shipping-service tạo shipment
+      operationId: pay
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayRequest'
+      responses:
+        '201':
+          description: Thanh toán thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '200':
+          description: Đơn hàng đã thanh toán trước đó
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+
+  /api/payment/status/:
+    get:
+      tags: [Payment]
+      summary: Kiểm tra trạng thái thanh toán
+      operationId: paymentStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: order_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Trạng thái thanh toán
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '404':
+          description: Không tìm thấy payment
+
+  # ══════════════════════════════════════════════════════════════
+  # SHIPPING
+  # ══════════════════════════════════════════════════════════════
+  /api/shipping/create/:
+    post:
+      tags: [Shipping]
+      summary: Tạo shipment cho đơn hàng
+      operationId: createShipment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShipmentRequest'
+      responses:
+        '201':
+          description: Shipment đã tạo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shipment'
+
+  /api/shipping/status/:
+    get:
+      tags: [Shipping]
+      summary: Kiểm tra trạng thái vận chuyển
+      operationId: shipmentStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: order_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Trạng thái vận chuyển
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shipment'
+        '404':
+          description: Không tìm thấy shipment
+
+  /api/shipping/{id}/update/:
+    put:
+      tags: [Shipping]
+      summary: Cập nhật trạng thái vận chuyển (staff/admin)
+      operationId: updateShipment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateShipmentRequest'
+      responses:
+        '200':
+          description: Đã cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shipment'
+        '400':
+          description: Status không hợp lệ
+        '404':
+          description: Không tìm thấy shipment
+
+  # ══════════════════════════════════════════════════════════════
+  # AI SERVICE
+  # ══════════════════════════════════════════════════════════════
+  /api/ai/health:
+    get:
+      tags: [AI]
+      summary: Health check
+      operationId: aiHealth
+      responses:
+        '200':
+          description: Service đang hoạt động
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: ai-service
+
+  /api/recommend:
+    get:
+      tags: [AI]
+      summary: Gợi ý sản phẩm (LSTM)
+      operationId: recommend
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Danh sách product IDs gợi ý
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendResponse'
+
+  /api/chatbot:
+    post:
+      tags: [AI]
+      summary: Chatbot tư vấn sản phẩm (GraphRAG)
+      description: |
+        Sử dụng Neo4j Knowledge Graph + OpenAI để trả lời
+        câu hỏi về sản phẩm.
+      operationId: chatbot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatbotRequest'
+      responses:
+        '200':
+          description: Câu trả lời từ AI
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatbotResponse'
