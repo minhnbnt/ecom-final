@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router';
 import {
   ShoppingCart, Heart, Share2, Star, ArrowLeft,
-  Package, Tag, ChevronRight, Loader2,
+  Package, Tag, ChevronRight, Loader2, Sparkles,
+  FileText, SlidersHorizontal, MessageSquare,
 } from 'lucide-react';
+import { getProductImage } from '../utils/productImage';
 
 interface ProductDetail {
   id: number;
@@ -48,6 +50,7 @@ function SpecRow({ label, value }: { label: string; value?: string | number | nu
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [similar, setSimilar] = useState<ProductDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'description' | 'specs' | 'reviews'>('description');
@@ -63,12 +66,19 @@ export default function ProductDetail() {
       })
       .then((data: ProductDetail) => {
         setProduct(data);
-        setLoading(false);
+        return data;
       })
+      .then(data =>
+        fetch(`/api/products/?category=${data.category}&limit=5`)
+          .then(r => r.json())
+          .then((all: ProductDetail[]) =>
+            setSimilar(all.filter(p => p.id !== data.id).slice(0, 4))
+          )
+      )
       .catch(e => {
         setError(e.message);
-        setLoading(false);
-      });
+      })
+      .finally(() => setLoading(false));
   }, [id]);
 
   const handleAddToCart = async () => {
@@ -76,10 +86,10 @@ export default function ProductDetail() {
     if (!token) { window.location.href = '/login'; return; }
     if (!product) return;
     try {
-      await fetch('/api/cart/items/', {
+      await fetch('/api/cart/add/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ product: product.id, quantity: 1 }),
+        body: JSON.stringify({ product_id: product.id, quantity: 1 }),
       });
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
@@ -114,7 +124,7 @@ export default function ProductDetail() {
     );
   }
 
-  const imgSrc = product.image_url?.startsWith('http')
+  const imgSrc = product.image_url?.startsWith('http') || product.image_url?.startsWith('/')
     ? product.image_url
     : (PLACEHOLDER_IMAGES[product.category_name] ?? PLACEHOLDER_IMAGES['default']);
 
@@ -227,7 +237,7 @@ export default function ProductDetail() {
                 <ShoppingCart size={17} />
                 {added ? 'Đã thêm vào giỏ! ✓' : inStock ? 'Thêm vào giỏ hàng' : 'Hết hàng'}
               </button>
-              <button className="glass-button w-12 h-12 flex items-center justify-center flex-shrink-0 text-slate-400 hover:text-red-500 hover:border-red-200 transition-colors p-0">
+              <button className="bg-white/70 backdrop-blur border border-slate-200 w-12 h-12 flex items-center justify-center flex-shrink-0 text-slate-400 hover:text-red-500 hover:border-red-200 transition-colors rounded-xl">
                 <Heart size={18} />
               </button>
             </div>
@@ -236,20 +246,24 @@ export default function ProductDetail() {
           {/* Tabs */}
           <div className="glass-card !p-1.5 flex gap-1">
             {([
-              { key: 'description', label: 'Mô tả' },
-              { key: 'specs',       label: 'Thông số' },
-              { key: 'reviews',     label: 'Đánh giá' },
-            ] as const).map(t => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all ${
-                  tab === t.key ? 'bg-white shadow text-primary' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+              { key: 'description', label: 'Mô tả',    icon: FileText },
+              { key: 'specs',       label: 'Thông số',  icon: SlidersHorizontal },
+              { key: 'reviews',     label: 'Đánh giá',  icon: MessageSquare },
+            ] as const).map(t => {
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all ${
+                    tab === t.key ? 'bg-white shadow text-primary' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Icon size={14} />
+                  {t.label}
+                </button>
+              );
+            })}
           </div>
 
           <div className="glass-card min-h-[160px]">
@@ -291,6 +305,45 @@ export default function ProductDetail() {
           </Link>
         </div>
       </div>
+
+      {/* ── Sản phẩm tương tự ────────────────────────── */}
+      {similar.length > 0 && (
+        <section className="flex flex-col gap-5 mt-8">
+          <div className="flex items-center gap-2 text-primary font-bold uppercase tracking-widest text-xs">
+            <Sparkles size={15} />
+            <span>Gợi ý cho bạn</span>
+          </div>
+          <h2 className="text-2xl font-extrabold text-slate-900 -mt-3">Sản phẩm tương tự</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {similar.map(p => (
+              <Link
+                to={`/product/${p.id}`}
+                key={p.id}
+                className="glass-card group flex flex-col gap-0 overflow-hidden !p-0"
+              >
+                <div className="relative w-full aspect-[4/3] overflow-hidden bg-slate-100">
+                  <img
+                    src={getProductImage(p.id, p.category_name, p.image_url)}
+                    alt={p.name}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-108"
+                  />
+                  <div className="absolute top-2 left-2 bg-primary/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                    {p.category_name}
+                  </div>
+                </div>
+                <div className="p-3 flex items-center justify-between gap-2">
+                  <h3 className="font-bold text-sm text-slate-900 group-hover:text-primary transition-colors truncate">
+                    {p.name}
+                  </h3>
+                  <p className="font-extrabold text-primary text-sm flex-shrink-0">
+                    {Number(p.price).toLocaleString('vi-VN')}đ
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
