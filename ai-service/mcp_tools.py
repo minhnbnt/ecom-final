@@ -110,6 +110,7 @@ Quy tắc quan trọng:
   [Tên Sản Phẩm](/product/{product_id})
   Ví dụ: [Sony WH-1000XM5](/product/17) — **7.990.000đ**
 - Dùng markdown: **bold** giá tiền, bullet points cho danh sách nhiều sản phẩm
+- XUỐNG DÒNG bằng \n giữa các bullet point và sau mỗi câu
 - Trả lời bằng tiếng Việt, ngắn gọn và hữu ích
 - Format giá: X.XXX.XXXđ (dùng dấu chấm phân cách hàng nghìn)
 - Không bịa đặt thông tin, chỉ dùng dữ liệu từ tool"""
@@ -125,7 +126,10 @@ class MCPChatbot:
         self.kg = kg
         self.model = model
         # AsyncOpenAI — required for non-blocking streaming in async context
-        self.client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.client = openai.AsyncOpenAI(
+            api_key=api_key, base_url=base_url,
+            timeout=15.0, max_retries=0,
+        )
 
     # ── Tool Executors (sync DB calls, called via loop.run_in_executor if needed) ──
 
@@ -268,38 +272,43 @@ class MCPChatbot:
         all_products: list = []
 
         # ── Phase 1: Tool-call loop (non-streaming) ───────────────────────────
-        for _ in range(5):
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                tools=MCP_TOOLS,
-                tool_choice="auto",
-                temperature=0.4,
-                max_tokens=800,
-            )
-            msg = response.choices[0].message
+        try:
+            for _ in range(5):
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    tools=MCP_TOOLS,
+                    tool_choice="auto",
+                    temperature=0.4,
+                    max_tokens=800,
+                )
+                msg = response.choices[0].message
 
-            # No more tool calls → ready for streaming answer
-            if not msg.tool_calls:
-                break
+                if not msg.tool_calls:
+                    break
 
-            messages.append(msg)
+                messages.append(msg)
 
-            for tc in msg.tool_calls:
-                fn_name = tc.function.name
-                fn_args = json.loads(tc.function.arguments)
-                logger.info(f"MCP tool: {fn_name}({fn_args})")
+                for tc in msg.tool_calls:
+                    fn_name = tc.function.name
+                    fn_args = json.loads(tc.function.arguments)
+                    logger.info(f"MCP tool: {fn_name}({fn_args})")
 
-                yield f"data: {json.dumps({'type': 'tool_start', 'tool': fn_name, 'args': fn_args, 'done': False})}\n\n"
+                    yield f"data: {json.dumps({'type': 'tool_start', 'tool': fn_name, 'args': fn_args, 'done': False})}\n\n"
 
-                result_str = self._execute_tool(fn_name, fn_args)
-                _collect(all_products, result_str)
+                    result_str = self._execute_tool(fn_name, fn_args)
+                    _collect(all_products, result_str)
 
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": result_str,
-                })
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result_str,
+                    })
+        except Exception as e:
+            logger.error(f"Phase 1 (tool loop) failed: {e}")
+            yield f"data: {json.dumps({'type': 'token', 'token': f'Lỗi kết nối AI: {e}', 'done': False})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'token': '', 'done': True, 'products': _dedup(all_products)[:6], 'sources': {'error': str(e)}})}\n\n"
+            return
 
         # ── Phase 2: Stream final answer (AsyncOpenAI async iterator) ─────────
         # Append a final user turn telling the model to answer in plain text now
@@ -312,33 +321,18 @@ class MCPChatbot:
         _tool_call_re = re.compile(r"<tool_call>.*?</tool_call>", re.DOTALL)
 
         try:
-            stream = await self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 temperature=0.4,
                 max_tokens=800,
-                stream=True,          # AsyncOpenAI returns async iterable
             )
 
-            buf = ""
-            async for chunk in stream:      # ← non-blocking async for
-                delta = chunk.choices[0].delta
-                if not (delta and delta.content):
-                    continue
-
-                buf += delta.content
-
-                # Strip complete <tool_call>...</tool_call> blocks
-                cleaned = _tool_call_re.sub("", buf)
-
-                # If buffer might be mid-way through a <tool_call>, hold it back
-                if "<tool_call>" in buf and "</tool_call>" not in buf:
-                    continue   # wait for closing tag
-
-                # Emit cleaned tokens that aren't just whitespace
-                if cleaned.strip():
-                    yield f"data: {json.dumps({'type': 'token', 'token': cleaned, 'done': False})}\n\n"
-                buf = ""
+            msg = response.choices[0].message
+            content = msg.content or getattr(msg, 'reasoning', None) or ""
+            cleaned = _tool_call_re.sub("", content)
+            if cleaned.strip():
+                yield f"data: {json.dumps({'type': 'token', 'token': cleaned, 'done': False})}\n\n"
 
         except Exception as e:
             logger.error(f"Streaming failed: {e}")

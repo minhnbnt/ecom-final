@@ -2,8 +2,9 @@ from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.shortcuts import get_object_or_404
 from .models import Cart, CartItem
-from .serializers import CartSerializer, AddToCartSerializer
+from .serializers import CartSerializer, AddToCartSerializer, UpdateCartItemSerializer
 
 
 class CartView(APIView):
@@ -64,4 +65,29 @@ class RemoveFromCartView(APIView):
             pass
 
         cart, _ = Cart.objects.get_or_create(user_id=user_id)
+        return Response(CartSerializer(cart).data)
+
+
+class CartItemDetailView(APIView):
+    """PATCH /api/cart/items/<id>/ — Update item quantity."""
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def patch(self, request, item_id):
+        user_id = request.user.id
+        cart = get_object_or_404(Cart, user_id=user_id)
+        item = get_object_or_404(CartItem, id=item_id, cart=cart)
+
+        serializer = UpdateCartItemSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        item.quantity = serializer.validated_data['quantity']
+        item.save()
+
+        return Response(CartSerializer(cart).data)
+
+    def delete(self, request, item_id):
+        user_id = request.user.id
+        cart = get_object_or_404(Cart, user_id=user_id)
+        CartItem.objects.filter(id=item_id, cart=cart).delete()
+
+        cart.refresh_from_db()
         return Response(CartSerializer(cart).data)

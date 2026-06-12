@@ -45,6 +45,7 @@ Desktop.ini
 *.pth
 *.onnx
 
-# ── Agent / Gemini ────────────────────────────────────────────
+# ── Agent / Gemini / OpenCode ─────────────────────────────────
 .agent/
 .gemini/
+.opencode/

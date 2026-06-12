@@ -58,7 +58,6 @@ IMAGE_POOLS: dict[str, list[str]] = {
     ],
     "Điều hòa": [
         "https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=800&q=80",
-        "https://images.unsplash.com/photo-1626816740498-1fe2fccc5f11?w=800&q=80",
         "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80",
         "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=80",
     ],

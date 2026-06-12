@@ -1,8 +1,9 @@
 fastapi
 uvicorn[standard]
 keras>=3.0
-tensorflow>=2.16
+tensorflow-cpu>=2.16
 openai>=1.0
 numpy
 neo4j>=5.0
 httpx
+chromadb>=0.5

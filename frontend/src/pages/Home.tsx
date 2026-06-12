@@ -1,33 +1,51 @@
+import { useState, useEffect } from 'react';
 import { ShoppingBag, Star, Sparkles, TrendingUp, Grid, MessageSquare, ArrowRight, Zap, Shield } from 'lucide-react';
 import { Link } from 'react-router';
+import { getProductImage } from '../utils/productImage';
+
+interface Product {
+  id: number;
+  name: string;
+  price: string;
+  stock: number;
+  image_url: string;
+  category_name: string;
+}
 
 export default function Home() {
-  const recommendedProducts = [
-    {
-      id: 1,
-      name: 'Quantum Laptop Pro',
-      price: 1299,
-      image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      rating: 4.8,
-      category: 'Electronics',
-    },
-    {
-      id: 2,
-      name: 'Aura Wireless Headphones',
-      price: 249,
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      rating: 4.9,
-      category: 'Audio',
-    },
-    {
-      id: 3,
-      name: 'Vortex Mechanical Keyboard',
-      price: 159,
-      image: 'https://images.unsplash.com/photo-1595225476474-87563907a212?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      rating: 4.7,
-      category: 'Accessories',
-    },
-  ];
+  const [recommendedProducts, setRecommended] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    let userId = 1;
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        userId = payload.user_id ?? 1;
+      } catch { /* ignore */ }
+    }
+
+    fetch(`/api/recommend?user_id=${userId}&limit=3`)
+      .then(r => r.json())
+      .then(async (data: { recommended_product_ids: number[] }) => {
+        const ids = data.recommended_product_ids;
+        if (!ids || ids.length === 0) {
+          setLoading(false);
+          return;
+        }
+        const products = await Promise.all(
+          ids.map(id =>
+            fetch(`/api/products/${id}/`)
+              .then(r => r.json())
+              .catch(() => null)
+          )
+        );
+        setRecommended(products.filter(Boolean));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
   const categories = [
     { id: 1, name: 'Electronics', count: 124, gradient: 'from-blue-500 to-indigo-600', icon: '💻' },
@@ -136,39 +154,49 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          {recommendedProducts.map((product) => (
-            <Link
-              to={`/product/${product.id}`}
-              key={product.id}
-              className="glass-card group flex flex-col gap-0 overflow-hidden !p-0"
-            >
-              <div className="relative w-full aspect-[4/3] overflow-hidden bg-slate-100">
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-108"
-                />
-                {/* Rating badge */}
-                <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-bold text-amber-600 flex items-center gap-1 shadow-sm">
-                  <Star size={11} className="fill-amber-400 text-amber-400" />
-                  {product.rating}
-                </div>
-                {/* Category */}
-                <div className="absolute top-3 left-3 bg-primary/90 text-white text-xs font-semibold px-2.5 py-1 rounded-full">
-                  {product.category}
+        {loading ? (
+          <div className="grid md:grid-cols-3 gap-6">
+            {[1,2,3].map(i => (
+              <div key={i} className="glass-card overflow-hidden !p-0 animate-pulse">
+                <div className="w-full aspect-[4/3] bg-slate-200" />
+                <div className="p-4 space-y-2">
+                  <div className="h-4 bg-slate-200 rounded w-3/4" />
+                  <div className="h-3 bg-slate-200 rounded w-1/4" />
                 </div>
               </div>
-              <div className="p-4 flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-slate-900 group-hover:text-primary transition-colors">{product.name}</h3>
-                  <p className="text-slate-500 text-xs mt-0.5">Free Shipping</p>
+            ))}
+          </div>
+        ) : recommendedProducts.length === 0 ? (
+          <p className="text-slate-500 text-sm">Đang tải gợi ý từ LSTM model...</p>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-6">
+            {recommendedProducts.map((product) => (
+              <Link
+                to={`/product/${product.id}`}
+                key={product.id}
+                className="glass-card group flex flex-col gap-0 overflow-hidden !p-0"
+              >
+                <div className="relative w-full aspect-[4/3] overflow-hidden bg-slate-100">
+                  <img
+                    src={getProductImage(product.id, product.category_name, product.image_url)}
+                    alt={product.name}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-108"
+                  />
+                  <div className="absolute top-3 left-3 bg-primary/90 text-white text-xs font-semibold px-2.5 py-1 rounded-full">
+                    {product.category_name}
+                  </div>
                 </div>
-                <p className="font-extrabold text-primary text-lg">${product.price}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
+                <div className="p-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-900 group-hover:text-primary transition-colors">{product.name}</h3>
+                    <p className="text-slate-500 text-xs mt-0.5">Kho: {product.stock}</p>
+                  </div>
+                  <p className="font-extrabold text-primary text-lg">{Number(product.price).toLocaleString('vi-VN')}đ</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* ── Categories ───────────────────────────────── */}

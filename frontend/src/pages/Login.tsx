@@ -27,6 +27,8 @@ export default function Login() {
       if (!res.ok) throw new Error(data.error || data.detail || 'Đăng nhập thất bại');
       localStorage.setItem('access_token', data.tokens.access);
       localStorage.setItem('refresh_token', data.tokens.refresh);
+      localStorage.setItem('username', data.user?.username || '');
+      window.dispatchEvent(new Event('auth-changed'));
       window.location.href = '/';
     } catch (e) {
       setError((e as Error).message);
@@ -49,6 +51,8 @@ export default function Login() {
       if (!res.ok) throw new Error(Object.values(data).flat().join(', ') || 'Đăng ký thất bại');
       localStorage.setItem('access_token', data.tokens.access);
       localStorage.setItem('refresh_token', data.tokens.refresh);
+      localStorage.setItem('username', data.user?.username || '');
+      window.dispatchEvent(new Event('auth-changed'));
       window.location.href = '/';
     } catch (e) {
       setError((e as Error).message);

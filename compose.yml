@@ -1,5 +1,4 @@
 services:
-
   # ── Databases ─────────────────────────────────────────────────
 
   mariadb:
@@ -25,7 +24,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: productdb
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
       - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U django -d productdb"]
@@ -49,6 +48,15 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+
+  chromadb:
+    image: ghcr.io/chroma-core/chroma:1.5.8
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    volumes:
+      - chromadb-data:/chroma/chroma
+    # healthcheck intentionally omitted — no curl/python in image
 
   # ── DB Admin UIs ─────────────────────────────────────────────
 
@@ -161,9 +169,16 @@ services:
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       PRODUCT_SERVICE_URL: http://product-service:8000
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: "8000"
+    volumes:
+      - ai-models:/app/models
+      - chroma-cache:/root/.cache/chroma
     depends_on:
       neo4j:
         condition: service_healthy
+      chromadb:
+        condition: service_started
       product-service:
         condition: service_started
 
@@ -195,4 +210,7 @@ volumes:
   mariadb-data:
   postgres-data:
   neo4j-data:
+  chromadb-data:
+  ai-models:
+  chroma-cache:
   phpmyadmin-data:

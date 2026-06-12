@@ -62,7 +62,7 @@ export default function Products() {
     });
 
   const getImg = (p: Product) =>
-    p.image_url?.startsWith('http')
+    p.image_url?.startsWith('http') || p.image_url?.startsWith('/')
       ? p.image_url
       : (PLACEHOLDER_IMAGES[p.category_name] ?? PLACEHOLDER_IMAGES['default']);
 

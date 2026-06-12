@@ -51,11 +51,8 @@ export default function Cart() {
         body: JSON.stringify({ quantity: newQty }),
       });
       if (res.ok) {
-        const updated = await res.json();
-        setCart(prev => prev ? {
-          ...prev,
-          items: prev.items.map(i => i.id === itemId ? updated : i),
-        } : prev);
+        const full = await res.json();
+        setCart(full);
       }
     } finally { setUpdatingId(null); }
   };
@@ -64,14 +61,14 @@ export default function Cart() {
     if (!token) return;
     setUpdatingId(itemId);
     try {
-      await fetch(`/api/cart/items/${itemId}/`, {
+      const res = await fetch(`/api/cart/items/${itemId}/`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      setCart(prev => prev ? {
-        ...prev,
-        items: prev.items.filter(i => i.id !== itemId),
-      } : prev);
+      if (res.ok) {
+        const full = await res.json();
+        setCart(full);
+      }
     } finally { setUpdatingId(null); }
   };
 
@@ -140,7 +137,7 @@ export default function Cart() {
           {items.map(item => (
             <div key={item.id} className={`glass-card flex gap-4 transition-opacity ${updatingId === item.id ? 'opacity-50' : ''}`}>
               <img
-                src={item.product_image?.startsWith('http') ? item.product_image : PLACEHOLDER}
+                src={item.product_image?.startsWith('http') || item.product_image?.startsWith('/') ? item.product_image : PLACEHOLDER}
                 alt={item.product_name}
                 className="w-20 h-20 rounded-xl object-cover flex-shrink-0"
                 onError={e => { (e.target as HTMLImageElement).src = PLACEHOLDER; }}

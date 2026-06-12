@@ -1,0 +1,437 @@
+@startuml
+!theme plain
+top to bottom direction
+skinparam packageStyle rectangle
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Courier
+
+title **E-Commerce Microservices — Class Diagram**\n<size:14>(Non-AI Services)</size>
+
+' ============================================================
+' STYLES
+' ============================================================
+skinparam class {
+    BorderColor #2E4057
+    BackgroundColor #F0F4F8
+    FontColor #1A1A2E
+}
+
+skinparam package {
+    BorderColor #2E4057
+    BackgroundColor #FAFBFC
+    FontColor #1A1A2E
+    FontStyle bold
+    BorderThickness 2
+}
+
+' ============================================================
+' PACKAGE: user-service
+' ============================================================
+package "user-service\n<size:10>/api/auth/ · /api/users/</size>" as USER_SERVICE {
+    ' --- Models ---
+    class "User" as User {
+        + id: PK
+        + username: CharField
+        + email: EmailField
+        + password: CharField
+        + role: CharField [admin|staff|customer]
+        + phone: CharField
+        + address: TextField
+        + is_active: BooleanField
+        + date_joined: DateTimeField
+        ..
+        + is_admin: bool (property)
+        + is_staff_role: bool (property)
+        + is_customer: bool (property)
+    }
+    note top of User : extends AbstractUser
+
+    ' --- Serializers ---
+    class "RegisterSerializer" as RegisterSerializer {
+        + password: CharField (write_only)
+        + create(data): User
+    }
+    class "UserSerializer" as UserSerializer {
+    }
+    class "LoginSerializer" as LoginSerializer {
+        + username: CharField
+        + password: CharField (write_only)
+    }
+
+    ' --- API Views ---
+    class "RegisterView" as RegisterView {
+        + POST /register/ → JWT tokens
+    }
+    class "LoginView" as LoginView {
+        + POST /login/ → JWT tokens
+    }
+    class "UserListView" as UserListView {
+        + GET / → list all users
+    }
+    class "UserDetailView" as UserDetailView {
+        + GET/{id} / PUT/{id}
+    }
+    class "MeView" as MeView {
+        + GET /me/ → current user
+    }
+
+    ' --- Relationships ---
+    RegisterSerializer ..> User : creates
+    UserSerializer ..> User : serializes
+    LoginSerializer ..> User : authenticates
+    RegisterView --> RegisterSerializer
+    LoginView --> LoginSerializer
+    UserListView --> UserSerializer
+    UserDetailView --> UserSerializer
+    MeView --> UserSerializer
+}
+
+' ============================================================
+' PACKAGE: product-service
+' ============================================================
+package "product-service\n<size:10>/api/products/</size>" as PRODUCT_SERVICE {
+    ' --- Models ---
+    class "Category" as Category {
+        + id: PK
+        + name: CharField (unique)
+        + description: TextField
+        + created_at: DateTimeField
+    }
+
+    class "Product" as Product {
+        + id: PK
+        + name: CharField
+        + description: TextField
+        + price: DecimalField
+        + stock: PositiveIntegerField
+        + image_url: URLField
+        + is_active: BooleanField
+        + created_at: DateTimeField
+        + updated_at: DateTimeField
+    }
+
+    class "Book" as Book {
+        + product: OneToOne PK
+        + author: CharField
+        + publisher: CharField
+        + isbn: CharField
+        + pages: PositiveIntegerField
+    }
+
+    class "Electronics" as Electronics {
+        + product: OneToOne PK
+        + brand: CharField
+        + warranty_months: PositiveIntegerField
+        + specifications: JSONField
+    }
+
+    class "Fashion" as Fashion {
+        + product: OneToOne PK
+        + size: CharField
+        + color: CharField
+        + material: CharField
+    }
+
+    ' --- Serializers ---
+    class "CategorySerializer" as CategorySerializer {
+        + product_count: IntegerField (read_only)
+    }
+    class "ProductSerializer" as ProductSerializer {
+        + category_name: CharField (r/o)
+        + book: BookSerializer (r/o)
+        + electronics: ElectronicsSerializer (r/o)
+        + fashion: FashionSerializer (r/o)
+    }
+    class "ProductCreateSerializer" as ProductCreateSerializer {
+    }
+    class "BookSerializer" as BookSerializer {
+    }
+    class "ElectronicsSerializer" as ElectronicsSerializer {
+    }
+    class "FashionSerializer" as FashionSerializer {
+    }
+
+    ' --- API Views ---
+    class "CategoryListCreateView" as CategoryListCreateView {
+        + GET /categories/
+        + POST /categories/ (auth)
+    }
+    class "ProductListCreateView" as ProductListCreateView {
+        + GET / → search, filter, order
+        + POST / (auth)
+    }
+    class "ProductDetailView" as ProductDetailView {
+        + GET/PUT/DELETE /{id}/
+    }
+
+    ' --- Relationships ---
+    Product --> Category : belongs_to
+    Book --> Product : extends
+    Electronics --> Product : extends
+    Fashion --> Product : extends
+    CategorySerializer ..> Category
+    ProductSerializer ..> Product
+    ProductCreateSerializer ..> Product
+    BookSerializer ..> Book
+    ElectronicsSerializer ..> Electronics
+    FashionSerializer ..> Fashion
+    ProductSerializer --> BookSerializer
+    ProductSerializer --> ElectronicsSerializer
+    ProductSerializer --> FashionSerializer
+    CategoryListCreateView --> CategorySerializer
+    ProductListCreateView --> ProductSerializer
+    ProductListCreateView --> ProductCreateSerializer
+    ProductDetailView --> ProductSerializer
+}
+
+' ============================================================
+' PACKAGE: cart-service
+' ============================================================
+package "cart-service\n<size:10>/api/cart/</size>" as CART_SERVICE {
+    ' --- Models ---
+    class "Cart" as Cart {
+        + id: PK
+        + user_id: PositiveBigIntegerField (unique)
+        + created_at: DateTimeField
+        + updated_at: DateTimeField
+    }
+
+    class "CartItem" as CartItem {
+        + id: PK
+        + product_id: PositiveBigIntegerField
+        + quantity: PositiveIntegerField
+        + added_at: DateTimeField
+    }
+
+    ' --- Serializers ---
+    class "CartSerializer" as CartSerializer {
+        + items: CartItemSerializer[] (r/o)
+    }
+    class "CartItemSerializer" as CartItemSerializer {
+    }
+    class "AddToCartSerializer" as AddToCartSerializer {
+        + product_id: IntegerField
+        + quantity: IntegerField
+    }
+
+    ' --- API Views ---
+    class "CartView" as CartView {
+        + GET / → get_or_create cart
+    }
+    class "AddToCartView" as AddToCartView {
+        + POST /add/ → upsert item
+    }
+    class "RemoveFromCartView" as RemoveFromCartView {
+        + DELETE /remove/
+    }
+
+    ' --- Relationships ---
+    CartItem --> Cart : belongs_to
+    CartSerializer ..> Cart
+    CartItemSerializer ..> CartItem
+    CartSerializer --> CartItemSerializer
+    AddToCartSerializer ..> CartItem
+    CartView --> CartSerializer
+    AddToCartView --> AddToCartSerializer
+    AddToCartView --> CartSerializer
+    RemoveFromCartView --> CartSerializer
+}
+
+' ============================================================
+' PACKAGE: order-service
+' ============================================================
+package "order-service\n<size:10>/api/orders/</size>" as ORDER_SERVICE {
+    ' --- Models ---
+    class "Order" as Order {
+        + id: PK
+        + user_id: PositiveBigIntegerField
+        + total_price: DecimalField
+        + status: CharField [pending|confirmed|paid|shipping|delivered|cancelled]
+        + shipping_address: TextField
+        + created_at: DateTimeField
+        + updated_at: DateTimeField
+    }
+
+    class "OrderItem" as OrderItem {
+        + id: PK
+        + product_id: PositiveBigIntegerField
+        + product_name: CharField
+        + quantity: PositiveIntegerField
+        + unit_price: DecimalField
+        ..
+        + subtotal: Decimal (property)
+    }
+
+    ' --- Serializers ---
+    class "OrderSerializer" as OrderSerializer {
+        + items: OrderItemSerializer[] (r/o)
+    }
+    class "OrderItemSerializer" as OrderItemSerializer {
+        + subtotal: DecimalField (r/o)
+    }
+    class "CreateOrderSerializer" as CreateOrderSerializer {
+        + shipping_address: CharField
+    }
+
+    ' --- API Views ---
+    class "OrderListView" as OrderListView {
+        + GET / → user's orders
+    }
+    class "OrderDetailView" as OrderDetailView {
+        + GET /{id}/
+    }
+    class "CreateOrderView" as CreateOrderView {
+        + POST /create/
+        ..
+        + 1. Fetch cart (cart-service)
+        + 2. Fetch prices (product-service)
+        + 3. Create Order + Items
+        + 4. Call payment (payment-service)
+    }
+
+    ' --- Relationships ---
+    OrderItem --> Order : belongs_to
+    OrderSerializer ..> Order
+    OrderItemSerializer ..> OrderItem
+    OrderSerializer --> OrderItemSerializer
+    CreateOrderSerializer ..> Order
+    OrderListView --> OrderSerializer
+    OrderDetailView --> OrderSerializer
+    CreateOrderView --> CreateOrderSerializer
+    CreateOrderView --> OrderSerializer
+}
+
+' ============================================================
+' PACKAGE: payment-service
+' ============================================================
+package "payment-service\n<size:10>/api/payment/</size>" as PAYMENT_SERVICE {
+    ' --- Models ---
+    class "Payment" as Payment {
+        + id: PK
+        + order_id: PositiveBigIntegerField (unique)
+        + amount: DecimalField
+        + method: CharField
+        + status: CharField [pending|success|failed]
+        + transaction_id: CharField
+        + created_at: DateTimeField
+        + updated_at: DateTimeField
+    }
+
+    ' --- Serializers ---
+    class "PaymentSerializer" as PaymentSerializer {
+    }
+    class "PaySerializer" as PaySerializer {
+        + order_id: IntegerField
+        + amount: DecimalField
+        + method: CharField (default=credit_card)
+    }
+
+    ' --- API Views ---
+    class "PayView" as PayView {
+        + POST /pay/
+        ..
+        + 1. Create/update Payment
+        + 2. Simulate success
+        + 3. Call shipping-service
+    }
+    class "PaymentStatusView" as PaymentStatusView {
+        + GET /status/?order_id=
+    }
+
+    ' --- Relationships ---
+    PaymentSerializer ..> Payment
+    PaySerializer ..> Payment
+    PayView --> PaySerializer
+    PayView --> PaymentSerializer
+    PaymentStatusView --> PaymentSerializer
+}
+
+' ============================================================
+' PACKAGE: shipping-service
+' ============================================================
+package "shipping-service\n<size:10>/api/shipping/</size>" as SHIPPING_SERVICE {
+    ' --- Models ---
+    class "Shipment" as Shipment {
+        + id: PK
+        + order_id: PositiveBigIntegerField (unique)
+        + address: TextField
+        + status: CharField [processing|shipping|delivered|cancelled]
+        + tracking_number: CharField
+        + created_at: DateTimeField
+        + updated_at: DateTimeField
+    }
+
+    ' --- Serializers ---
+    class "ShipmentSerializer" as ShipmentSerializer {
+    }
+    class "CreateShipmentSerializer" as CreateShipmentSerializer {
+        + order_id: IntegerField
+        + address: CharField
+    }
+
+    ' --- API Views ---
+    class "CreateShipmentView" as CreateShipmentView {
+        + POST /create/
+    }
+    class "ShipmentStatusView" as ShipmentStatusView {
+        + GET /status/?order_id=
+    }
+    class "UpdateShipmentView" as UpdateShipmentView {
+        + PUT /{id}/update/ (staff/admin)
+    }
+
+    ' --- Relationships ---
+    ShipmentSerializer ..> Shipment
+    CreateShipmentSerializer ..> Shipment
+    CreateShipmentView --> CreateShipmentSerializer
+    CreateShipmentView --> ShipmentSerializer
+    ShipmentStatusView --> ShipmentSerializer
+    UpdateShipmentView --> ShipmentSerializer
+}
+
+' ============================================================
+' PACKAGE: Shared (Cross-cutting)
+' ============================================================
+package "Shared (Cross-cutting)\n<size:10>Auth — cart/order/payment/shipping</size>" as SHARED {
+    class "MicroserviceUser" as MicroserviceUser {
+        + id: int
+        + pk: int
+        + is_authenticated: bool
+        + is_active: bool
+    }
+    note top of MicroserviceUser : No DB lookup —\nfrom JWT claims
+
+    class "StatelessJWTAuthentication" as StatelessJWTAuthentication {
+        + get_user(validated_token): MicroserviceUser
+    }
+    note top of StatelessJWTAuthentication : extends JWTAuthentication
+}
+
+' ============================================================
+' INTER-SERVICE DEPENDENCIES (HTTP calls)
+' ============================================================
+rectangle "Inter-Service HTTP Calls" as INTER_HTTP #F0FFF0 {
+}
+
+CreateOrderView --> Cart : "HTTP GET /api/cart/" : fetchCart
+CreateOrderView --> Product : "HTTP GET /api/products/{id}/" : fetchPrice
+CreateOrderView --> PayView : "HTTP POST /api/payment/pay/" : initiatePayment
+PayView --> CreateShipmentView : "HTTP POST /api/shipping/create/" : createShipment
+
+' ============================================================
+' AUTH USAGE
+' ============================================================
+StatelessJWTAuthentication ..> MicroserviceUser : creates
+StatelessJWTAuthentication <|.. CartView : authenticates
+StatelessJWTAuthentication <|.. AddToCartView : authenticates
+StatelessJWTAuthentication <|.. RemoveFromCartView : authenticates
+StatelessJWTAuthentication <|.. OrderListView : authenticates
+StatelessJWTAuthentication <|.. OrderDetailView : authenticates
+StatelessJWTAuthentication <|.. CreateOrderView : authenticates
+StatelessJWTAuthentication <|.. PayView : authenticates
+StatelessJWTAuthentication <|.. PaymentStatusView : authenticates
+StatelessJWTAuthentication <|.. CreateShipmentView : authenticates
+StatelessJWTAuthentication <|.. ShipmentStatusView : authenticates
+StatelessJWTAuthentication <|.. UpdateShipmentView : authenticates
+
+@enduml
