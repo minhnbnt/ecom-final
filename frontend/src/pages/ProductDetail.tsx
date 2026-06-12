@@ -68,18 +68,32 @@ export default function ProductDetail() {
         setProduct(data);
         return data;
       })
-      .then(data =>
-        fetch(`/api/products/?category=${data.category}&limit=5`)
+      .then(data => {
+        trackView(data.id);
+        return fetch(`/api/products/?category=${data.category}&limit=5`)
           .then(r => r.json())
           .then((all: ProductDetail[]) =>
             setSimilar(all.filter(p => p.id !== data.id).slice(0, 4))
-          )
-      )
+          );
+      })
       .catch(e => {
         setError(e.message);
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  function trackView(productId: number) {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const userId = payload.user_id;
+      fetch(`/api/ai/track?user_id=${userId}&product_id=${productId}&action=view`, {
+        method: 'POST',
+        keepalive: true,
+      });
+    } catch { /* ignore */ }
+  }
 
   const handleAddToCart = async () => {
     const token = localStorage.getItem('access_token');

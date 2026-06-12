@@ -61,6 +61,18 @@ export default function Products() {
       return b.id - a.id;
     });
 
+  function trackClick(productId: number) {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      fetch(`/api/ai/track?user_id=${payload.user_id}&product_id=${productId}&action=click`, {
+        method: 'POST',
+        keepalive: true,
+      });
+    } catch { /* ignore */ }
+  }
+
   const getImg = (p: Product) =>
     p.image_url?.startsWith('http') || p.image_url?.startsWith('/')
       ? p.image_url
@@ -164,6 +176,7 @@ export default function Products() {
             <Link
               to={`/product/${product.id}`}
               key={product.id}
+              onClick={() => trackClick(product.id)}
               className="glass-card group flex flex-col !p-0 overflow-hidden"
             >
               <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
