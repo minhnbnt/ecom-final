@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router';
-import { ShoppingBag, User, Search, MessageSquare, Sparkles, LogOut, Package } from 'lucide-react';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router';
+import { ShoppingBag, User, Search, MessageSquare, Sparkles, LogOut, Package, Heart } from 'lucide-react';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import ProductDetail from './pages/ProductDetail';
@@ -11,11 +11,15 @@ import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import Orders from './pages/Orders';
 import OrderDetail from './pages/OrderDetail';
+import Profile from './pages/Profile';
+import Wishlist from './pages/Wishlist';
 
 function Navbar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const isActive = (path: string) => location.pathname === path;
   const [token, setToken] = useState(localStorage.getItem('access_token'));
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const check = () => setToken(localStorage.getItem('access_token'));
@@ -99,6 +103,14 @@ function Navbar() {
             <input
               type="text"
               placeholder="Search products..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && searchQuery.trim()) {
+                  navigate(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+                  setSearchQuery('');
+                }
+              }}
               className="bg-white/8 border border-white/15 text-white placeholder:text-slate-500 rounded-full pl-9 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:bg-white/12 text-sm w-52 transition-all"
             />
           </div>
@@ -111,6 +123,17 @@ function Navbar() {
           >
             <MessageSquare size={18} />
           </Link>
+
+          {/* Wishlist */}
+          {token && (
+            <Link
+              to="/wishlist"
+              title="Wishlist"
+              className="w-9 h-9 rounded-xl bg-white/8 hover:bg-white/15 border border-white/10 flex items-center justify-center text-slate-300 hover:text-red-400 transition-all duration-200"
+            >
+              <Heart size={18} />
+            </Link>
+          )}
 
           {/* Orders */}
           {token && (
@@ -142,7 +165,13 @@ function Navbar() {
           {/* Auth */}
           {token ? (
             <div className="flex items-center gap-2">
-              <span className="hidden sm:block text-sm text-white/80 font-medium">{username}</span>
+              <Link
+                to="/profile"
+                className="hidden sm:flex items-center gap-2 text-sm font-medium text-white/80 hover:text-white transition-colors"
+              >
+                <User size={15} />
+                {username}
+              </Link>
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 px-4 py-2 rounded-xl transition-all duration-200 shadow-lg shadow-red-500/30"
@@ -193,6 +222,8 @@ function App() {
               <Route path="/checkout"  element={<Checkout />} />
               <Route path="/orders"    element={<Orders />} />
               <Route path="/orders/:id" element={<OrderDetail />} />
+              <Route path="/profile"   element={<Profile />} />
+              <Route path="/wishlist"  element={<Wishlist />} />
               <Route path="*"           element={<PlaceholderPage title="404 — Page Not Found" />} />
             </Routes>
           </div>

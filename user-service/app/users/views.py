@@ -4,9 +4,52 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .serializers import RegisterSerializer, UserSerializer, LoginSerializer
+from .models import WishlistItem
+from .serializers import RegisterSerializer, UserSerializer, LoginSerializer, WishlistItemSerializer
 
 User = get_user_model()
+
+
+class WishlistListView(APIView):
+    """GET /api/wishlist/ — List current user's wishlist items."""
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request):
+        items = WishlistItem.objects.filter(user_id=request.user.id)
+        return Response(WishlistItemSerializer(items, many=True).data)
+
+
+class WishlistAddView(APIView):
+    """POST /api/wishlist/add/ — Add a product to wishlist."""
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        product_id = request.data.get('product_id')
+        if not product_id:
+            return Response({'error': 'product_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        item, created = WishlistItem.objects.get_or_create(
+            user_id=request.user.id,
+            product_id=int(product_id),
+        )
+        return Response(
+            WishlistItemSerializer(item).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+class WishlistRemoveView(APIView):
+    """DELETE /api/wishlist/remove/<product_id>/ — Remove from wishlist."""
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def delete(self, request, product_id):
+        deleted, _ = WishlistItem.objects.filter(
+            user_id=request.user.id,
+            product_id=product_id,
+        ).delete()
+        if not deleted:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -75,8 +118,14 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
 
 
 class MeView(APIView):
-    """GET /api/users/me/ — Current user profile."""
+    """GET/PUT /api/users/me/ — Current user profile."""
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request):
         return Response(UserSerializer(request.user).data)
+
+    def put(self, request):
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

@@ -22,4 +22,4 @@ COPY . .
 EXPOSE 8000
 
 # Run migrations then start server
-CMD ["sh", "-c", "python manage.py migrate --noinput --fake-initial && python manage.py runserver 0.0.0.0:8000"]
+CMD ["sh", "-c", "python manage.py makemigrations users --noinput && python manage.py migrate --noinput --fake-initial && python manage.py runserver 0.0.0.0:8000"]

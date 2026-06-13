@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, SlidersHorizontal, ShoppingBag, X, ChevronDown } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 
 interface Product {
   id: number;
@@ -30,10 +30,11 @@ const SORT_OPTIONS = [
 ];
 
 export default function Products() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [selectedCat, setSelectedCat] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') ?? '');
+  const [selectedCat, setSelectedCat] = useState(searchParams.get('cat') ?? '');
   const [sort, setSort] = useState('default');
   const [showFilters, setShowFilters] = useState(false);
 
@@ -46,6 +47,13 @@ export default function Products() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (selectedCat) params.set('cat', selectedCat);
+    setSearchParams(params, { replace: true });
+  }, [search, selectedCat, setSearchParams]);
 
   const categories = ['', ...Array.from(new Set(products.map(p => p.category_name))).sort()];
 
@@ -110,7 +118,7 @@ export default function Products() {
             <select
               value={sort}
               onChange={e => setSort(e.target.value)}
-              className="glass-input py-2 pr-8 text-sm appearance-none cursor-pointer"
+              className="glass-input px-4 py-2 pr-8 text-sm appearance-none cursor-pointer"
             >
               {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>

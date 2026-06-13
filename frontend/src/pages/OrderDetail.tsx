@@ -25,6 +25,46 @@ interface Order {
   updated_at: string;
 }
 
+interface PaymentInfo {
+  id: number;
+  order_id: number;
+  amount: string;
+  method: string;
+  status: string;
+  transaction_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ShipmentInfo {
+  id: number;
+  order_id: number;
+  address: string;
+  status: string;
+  tracking_number: string;
+  created_at: string;
+  updated_at: string;
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  credit_card: 'Thẻ tín dụng / Thẻ ghi nợ',
+  bank_transfer: 'Chuyển khoản ngân hàng',
+  cod: 'Thanh toán khi nhận hàng (COD)',
+};
+
+const PAYMENT_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  pending: { label: 'Chờ thanh toán', color: 'text-amber-600' },
+  success: { label: 'Đã thanh toán', color: 'text-accent' },
+  failed: { label: 'Thất bại', color: 'text-red-600' },
+};
+
+const SHIPPING_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  processing: { label: 'Đang xử lý', color: 'text-amber-600' },
+  shipping: { label: 'Đang giao', color: 'text-purple-600' },
+  delivered: { label: 'Đã giao', color: 'text-accent' },
+  cancelled: { label: 'Đã hủy', color: 'text-red-600' },
+};
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof Clock }> = {
   pending:    { label: 'Chờ xác nhận', color: 'text-amber-600 bg-amber-100', icon: Clock },
   confirmed:  { label: 'Đã xác nhận',  color: 'text-blue-600 bg-blue-100',  icon: CheckCircle },
@@ -50,19 +90,28 @@ const STATUS_FLOW = ['pending', 'confirmed', 'paid', 'shipping', 'delivered'];
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
   const [order, setOrder] = useState<Order | null>(null);
+  const [payment, setPayment] = useState<PaymentInfo | null>(null);
+  const [shipment, setShipment] = useState<ShipmentInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const token = localStorage.getItem('access_token');
 
   useEffect(() => {
     if (!token || !id) { setLoading(false); return; }
-    fetch(`/api/orders/${id}/`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => {
+    Promise.all([
+      fetch(`/api/orders/${id}/`, { headers: { Authorization: `Bearer ${token}` } }).then(r => {
         if (!r.ok) throw new Error('Không tìm thấy đơn hàng');
         return r.json();
-      })
-      .then(data => {
-        setOrder(data);
+      }),
+      fetch(`/api/payment/status/?order_id=${id}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null),
+      fetch(`/api/shipping/status/?order_id=${id}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null),
+    ])
+      .then(([orderData, paymentData, shipmentData]) => {
+        setOrder(orderData);
+        setPayment(paymentData);
+        setShipment(shipmentData);
         setLoading(false);
       })
       .catch(e => {
@@ -113,9 +162,6 @@ export default function OrderDetail() {
   const createdDate = new Date(order.created_at).toLocaleDateString('vi-VN', {
     year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
   });
-  const updatedDate = new Date(order.updated_at).toLocaleDateString('vi-VN', {
-    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
   const currentStatusIdx = STATUS_FLOW.indexOf(order.status);
 
   return (
@@ -147,7 +193,7 @@ export default function OrderDetail() {
             const Icon = cfg.icon;
             return (
               <div key={s} className="flex-1 flex flex-col items-center gap-1.5">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                <div className={`w-[90%] h-7 rounded-lg flex items-center justify-center transition-all ${
                   isCurrent
                     ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-110'
                     : isActive
@@ -162,7 +208,7 @@ export default function OrderDetail() {
                   {cfg.label}
                 </span>
                 {idx < STATUS_FLOW.length - 1 && (
-                  <div className={`h-0.5 w-full -mt-6 ${
+                  <div className={`h-0.5 w-full -mt-5 ${
                     currentStatusIdx > idx ? 'bg-accent' : 'bg-slate-200'
                   }`} />
                 )}
@@ -188,15 +234,58 @@ export default function OrderDetail() {
             <CreditCard size={16} className="text-primary" />
             Thông tin thanh toán
           </h2>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-500">Tổng tiền</span>
-            <span className="font-extrabold text-primary">{total.toLocaleString('vi-VN')}đ</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-500">Cập nhật</span>
-            <span className="text-slate-600 text-xs">{updatedDate}</span>
-          </div>
+          {payment ? (
+            <>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Phương thức</span>
+                <span className="font-medium text-slate-700">{PAYMENT_METHOD_LABELS[payment.method] || payment.method}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Trạng thái</span>
+                <span className={`font-medium ${(PAYMENT_STATUS_LABELS[payment.status]?.color) ?? ''}`}>
+                  {PAYMENT_STATUS_LABELS[payment.status]?.label ?? payment.status}
+                </span>
+              </div>
+              {payment.transaction_id && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Mã giao dịch</span>
+                  <span className="font-mono text-xs text-slate-600">{payment.transaction_id}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Tổng tiền</span>
+                <span className="font-extrabold text-primary">{total.toLocaleString('vi-VN')}đ</span>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Tổng tiền</span>
+              <span className="font-extrabold text-primary">{total.toLocaleString('vi-VN')}đ</span>
+            </div>
+          )}
         </div>
+
+        {/* Shipment tracking */}
+        {shipment && (
+          <div className="glass-card flex flex-col gap-2">
+            <h2 className="flex items-center gap-2 font-bold text-slate-900 text-sm">
+              <Truck size={16} className="text-primary" />
+              Vận chuyển
+            </h2>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Trạng thái</span>
+              <span className={`font-medium ${(SHIPPING_STATUS_LABELS[shipment.status]?.color) ?? ''}`}>
+                {SHIPPING_STATUS_LABELS[shipment.status]?.label ?? shipment.status}
+              </span>
+            </div>
+            {shipment.tracking_number && (
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Mã vận đơn</span>
+                <span className="font-mono text-xs text-slate-600">{shipment.tracking_number}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Items */}

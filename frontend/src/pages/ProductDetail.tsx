@@ -55,6 +55,18 @@ export default function ProductDetail() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'description' | 'specs' | 'reviews'>('description');
   const [added, setAdded] = useState(false);
+  const [wishlisted, setWishlisted] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token || !id) return;
+    fetch(`/api/wishlist/`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then((items: { product_id: number }[]) => {
+        if (items.some(i => i.product_id === Number(id))) setWishlisted(true);
+      })
+      .catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -251,8 +263,27 @@ export default function ProductDetail() {
                 <ShoppingCart size={17} />
                 {added ? 'Đã thêm vào giỏ! ✓' : inStock ? 'Thêm vào giỏ hàng' : 'Hết hàng'}
               </button>
-              <button className="bg-white/70 backdrop-blur border border-slate-200 w-12 h-12 flex items-center justify-center flex-shrink-0 text-slate-400 hover:text-red-500 hover:border-red-200 transition-colors rounded-xl">
-                <Heart size={18} />
+              <button
+                onClick={() => {
+                  const token = localStorage.getItem('access_token');
+                  if (!token) return;
+                  if (wishlisted) {
+                    fetch(`/api/wishlist/remove/${id}/`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+                      .then(r => { if (r.ok) setWishlisted(false); })
+                      .catch(() => {});
+                  } else {
+                    fetch(`/api/wishlist/add/`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ product_id: Number(id) }) })
+                      .then(r => { if (r.ok) setWishlisted(true); })
+                      .catch(() => {});
+                  }
+                }}
+                className={`w-12 h-12 flex items-center justify-center flex-shrink-0 transition-colors rounded-xl border ${
+                  wishlisted
+                    ? 'bg-red-50 border-red-200 text-red-500'
+                    : 'bg-white/70 backdrop-blur border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200'
+                }`}
+              >
+                <Heart size={18} fill={wishlisted ? 'currentColor' : 'none'} />
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from .models import WishlistItem
 
 User = get_user_model()
 
@@ -39,3 +40,10 @@ class LoginSerializer(serializers.Serializer):
     """Serializer for login (returns JWT tokens)."""
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
+
+
+class WishlistItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WishlistItem
+        fields = ('id', 'user_id', 'product_id', 'created_at')
+        read_only_fields = ('id', 'user_id', 'created_at')

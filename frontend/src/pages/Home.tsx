@@ -12,8 +12,34 @@ interface Product {
   category_name: string;
 }
 
+interface Category {
+  id: number;
+  name: string;
+  description: string;
+  product_count: number;
+}
+
+const CATEGORY_GRADIENTS: Record<string, string> = {
+  'Laptop': 'from-blue-500 to-indigo-600',
+  'Điện thoại': 'from-emerald-400 to-teal-600',
+  'Tai nghe': 'from-pink-500 to-rose-600',
+  'Đồng hồ': 'from-orange-400 to-red-600',
+  'Sách': 'from-purple-500 to-violet-600',
+};
+
+const CATEGORY_ICONS: Record<string, string> = {
+  'Laptop': '💻',
+  'Điện thoại': '📱',
+  'Tai nghe': '🎧',
+  'Đồng hồ': '⌚',
+  'Sách': '📚',
+};
+
+const GRADIENT_LIST = ['from-blue-500 to-indigo-600', 'from-emerald-400 to-teal-600', 'from-pink-500 to-rose-600', 'from-orange-400 to-red-600', 'from-purple-500 to-violet-600'];
+
 export default function Home() {
   const [recommendedProducts, setRecommended] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,14 +71,12 @@ export default function Home() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
 
-  const categories = [
-    { id: 1, name: 'Electronics', count: 124, gradient: 'from-blue-500 to-indigo-600', icon: '💻' },
-    { id: 2, name: 'Smart Home',  count: 58,  gradient: 'from-emerald-400 to-teal-600', icon: '🏠' },
-    { id: 3, name: 'Accessories', count: 320, gradient: 'from-pink-500 to-rose-600',    icon: '🎧' },
-    { id: 4, name: 'Gaming',      count: 87,  gradient: 'from-orange-400 to-red-600',   icon: '🎮' },
-  ];
+    fetch('/api/products/categories/')
+      .then(r => r.json())
+      .then(setCategories)
+      .catch(() => {});
+  }, []);
 
   const features = [
     {
@@ -212,17 +236,17 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-          {categories.map((cat) => (
+          {categories.map((cat, i) => (
             <Link
-              to={`/categories/${cat.id}`}
+              to={`/products?cat=${encodeURIComponent(cat.name)}`}
               key={cat.id}
               className="glass-card p-6 flex flex-col items-center justify-center text-center gap-3 group relative overflow-hidden min-h-[130px]"
             >
-              <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${cat.gradient} transition-opacity duration-300`} />
-              <span className="text-3xl">{cat.icon}</span>
+              <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${CATEGORY_GRADIENTS[cat.name] ?? GRADIENT_LIST[i % GRADIENT_LIST.length]} transition-opacity duration-300`} />
+              <span className="text-3xl">{CATEGORY_ICONS[cat.name] ?? '📦'}</span>
               <div>
                 <h3 className="font-bold text-slate-900">{cat.name}</h3>
-                <p className="text-slate-500 text-xs mt-0.5">{cat.count} items</p>
+                <p className="text-slate-500 text-xs mt-0.5">{cat.product_count} items</p>
               </div>
             </Link>
           ))}

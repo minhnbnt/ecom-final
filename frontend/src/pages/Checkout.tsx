@@ -69,6 +69,7 @@ export default function Checkout() {
         },
         body: JSON.stringify({
           shipping_address: shippingAddress.trim(),
+          payment_method: paymentMethod,
         }),
       });
       const data = await res.json();
@@ -165,7 +166,7 @@ export default function Checkout() {
                 rows={3}
                 value={shippingAddress}
                 onChange={e => setShippingAddress(e.target.value)}
-                className="glass-input resize-none"
+                className="glass-input resize-none px-4"
                 placeholder="Nhập địa chỉ giao hàng (số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố)"
               />
             </div>

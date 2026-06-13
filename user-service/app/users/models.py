@@ -34,6 +34,22 @@ class User(AbstractUser):
     def is_admin(self):
         return self.role == self.Role.ADMIN
 
+
+class WishlistItem(models.Model):
+    """Saved product for a user (wishlist/favorites)."""
+
+    user_id = models.PositiveBigIntegerField()
+    product_id = models.PositiveBigIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'wishlist_items'
+        unique_together = [['user_id', 'product_id']]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"WishlistItem(user={self.user_id}, product={self.product_id})"
+
     @property
     def is_staff_role(self):
         return self.role == self.Role.STAFF

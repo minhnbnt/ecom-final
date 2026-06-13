@@ -24,3 +24,4 @@ class OrderSerializer(serializers.ModelSerializer):
 class CreateOrderSerializer(serializers.Serializer):
     """Create order from cart — fetches cart items from cart-service."""
     shipping_address = serializers.CharField()
+    payment_method = serializers.CharField(default='credit_card')

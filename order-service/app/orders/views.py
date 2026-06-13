@@ -111,6 +111,7 @@ class CreateOrderView(APIView):
                 json={
                     'order_id': order.id,
                     'amount': float(order.total_price),
+                    'method': serializer.validated_data.get('payment_method', 'credit_card'),
                 },
                 headers={'Authorization': token},
                 timeout=5,
